@@ -210,7 +210,7 @@ class MainActivity : Activity() {
         panelList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(this).apply {
             isFillViewport = true
-            addView(panelList, ScrollView.LayoutParams(MATCH, WRAP))
+            addView(panelList, FrameLayout.LayoutParams(MATCH, WRAP))
         }
         overlay.addView(scroll, LinearLayout.LayoutParams(MATCH, 0, 1f))
         return overlay
