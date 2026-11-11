@@ -11,9 +11,9 @@
 | --- | --- |
 | `app/src/main/kotlin/com/xiaoqi/calculator/Calculator.kt` | 表达式引擎：四则、括号、一元负号、后缀百分号；纯 Kotlin，可脱离 Android 编译 |
 | `app/src/main/kotlin/com/xiaoqi/calculator/MainActivity.kt` | 界面与按键状态机 |
-| `tools/EngineCheck.kt` | 引擎自检（28 条断言），`kotlinc` 直接跑 |
+| `tools/EngineCheck.kt` | 引擎自检（50 条断言），`kotlinc` 直接跑，CI 也会跑 |
 | `design/icon.svg`、`design/icon-round.svg` | 图标设计源文件 |
-| `keystore/hello-release.p12` | release 签名密钥（**务必备份**） |
+| `keystore/` | 本地签名材料（**不入库**，需自行备份 `.p12` 与口令） |
 
 ## 构建
 
