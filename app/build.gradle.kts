@@ -16,8 +16,8 @@ android {
         applicationId = "com.xiaoqi.calculator"
         minSdk = 24
         targetSdk = 36
-        versionCode = 5
-        versionName = "2.2-test"
+        versionCode = 6
+        versionName = "2.3-test"
     }
 
     signingConfigs {

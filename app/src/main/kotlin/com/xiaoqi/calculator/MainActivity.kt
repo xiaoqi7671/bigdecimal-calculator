@@ -23,6 +23,7 @@ import android.widget.PopupMenu
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.math.BigDecimal
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -56,6 +57,11 @@ class MainActivity : AppCompatActivity() {
     private var lastOperand: String? = null
     /** true = 屏幕上是刚算出的结果，不是用户正在敲的式子。 */
     private var resultMode = false
+
+    /** 记忆寄存器：M+ / M− / MR / MC。 */
+    private var memory: BigDecimal? = null
+    private var memoryIndicator: TextView? = null
+    private var scientificStrip: View? = null
 
     private val idleHandler = Handler(Looper.getMainLooper())
     private val idleSnapshot = Runnable { takeSnapshot() }
@@ -146,6 +152,9 @@ class MainActivity : AppCompatActivity() {
         rootView = column
         column.addView(buildTopBar(), LinearLayout.LayoutParams(MATCH, dp(48f)))
         column.addView(buildDisplay(), LinearLayout.LayoutParams(MATCH, 0, 1f))
+        val strip = buildScientificStrip()
+        scientificStrip = strip
+        column.addView(strip, LinearLayout.LayoutParams(MATCH, dp(88f)))
         column.addView(buildKeypad(), LinearLayout.LayoutParams(MATCH, 0, 2.6f))
         return column
     }
@@ -160,7 +169,15 @@ class MainActivity : AppCompatActivity() {
             circleIcon(R.drawable.ic_history_outline, "历史记录") { showHistorySheet() },
             LinearLayout.LayoutParams(dp(48f), dp(48f))
         )
-        bar.addView(View(this), LinearLayout.LayoutParams(0, dp(1f), 1f))
+        memoryIndicator = TextView(this).apply {
+            gravity = Gravity.CENTER
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setTextColor(colorOnSurfaceVariant)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            isClickable = true
+            setOnClickListener { recallMemory() }
+        }
+        bar.addView(memoryIndicator, LinearLayout.LayoutParams(0, dp(48f), 1f))
         bar.addView(
             circleIcon(R.drawable.ic_settings_outline, "设置") { showSettingsSheet() },
             LinearLayout.LayoutParams(dp(48f), dp(48f))
@@ -240,6 +257,53 @@ class MainActivity : AppCompatActivity() {
         return keypad
     }
 
+    /** 科学模式的两行功能键：记忆、常数、函数。 */
+    private fun buildScientificStrip(): View {
+        val strip = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = if (settings.scientific) View.VISIBLE else View.GONE
+        }
+        val rows = listOf(
+            listOf("MC", "MR", "M+", "M−", "π", "e", "√", "x²"),
+            listOf("xʸ", "1/x", "ln", "log", "sin", "cos", "tan", "!"),
+        )
+        for (row in rows) {
+            val line = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                weightSum = row.size.toFloat()
+            }
+            for (label in row) {
+                line.addView(
+                    makeMiniKey(label),
+                    LinearLayout.LayoutParams(0, MATCH, 1f).apply {
+                        setMargins(dp(2f), dp(2f), dp(2f), dp(2f))
+                    }
+                )
+            }
+            strip.addView(line, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        }
+        return strip
+    }
+
+    private fun makeMiniKey(label: String): MaterialButton = MaterialButton(this).apply {
+        text = label
+        isAllCaps = false
+        isFocusable = false
+        stateListAnimator = null
+        cornerRadius = dp(12f)
+        insetTop = 0
+        insetBottom = 0
+        minWidth = 0
+        minHeight = 0
+        setPadding(0, 0, 0, 0)
+        backgroundTintList = ColorStateList.valueOf(colorSurfaceContainerHigh)
+        setTextColor(colorOnSurfaceVariant)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        rippleColor = ColorStateList.valueOf(withAlpha(colorOnSurfaceVariant, 0x33))
+        setOnClickListener { onKey(label) }
+    }
+
     private fun makeKey(label: String): MaterialButton {
         val isFunction = label in FUNCTIONS
         val isEquals = label == "="
@@ -316,12 +380,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun onKey(key: String) {
         errorText = null
-        // 刚出结果时：敲数字重新开始，敲运算符在结果上继续算
-        if (resultMode && key != "=" && key != "⌫" && key != "%" && key != "±") {
+        // 刚出结果时：敲数字重新开始，敲运算符/记忆键在结果上继续
+        if (resultMode && key !in RESULT_MODE_KEEPS) {
             if (key == "C" || key !in OPERATORS) expr = ""
             resultMode = false
         }
-        val full = expr.length >= Calculator.MAX_LENGTH && key !in setOf("=", "C", "⌫")
+        val full = expr.length >= Calculator.MAX_LENGTH && key !in LENGTH_FREE_KEYS
         if (!full) {
             when (key) {
                 "C" -> expr = ""
@@ -332,12 +396,88 @@ class MainActivity : AppCompatActivity() {
                 "." -> appendDot()
                 "(", ")" -> appendParen(key[0])
                 "+", "−", "×", "÷" -> pressOperator(key[0])
+                "MC" -> {
+                    memory = null
+                    updateMemoryIndicator()
+                    toast("记忆已清除")
+                }
+                "MR" -> recallMemory()
+                "M+" -> adjustMemory(BigDecimal.ONE)
+                "M−" -> adjustMemory(BigDecimal.ONE.negate())
+                "x²" -> expr += "^2"
+                "xʸ" -> expr += "^"
+                "1/x" -> wrapReciprocal()
+                "!" -> appendFactorial()
+                "π", "e", "√", "sin", "cos", "tan", "ln", "log" -> appendToken(key)
                 else -> expr += key
             }
         }
         haptic()
         render()
         scheduleSnapshot()
+    }
+
+    private fun appendToken(token: String) {
+        val last = expr.lastOrNull()
+        val glue = last != null &&
+            (last.isDigit() || last == ')' || last == '%' || last == '!' || last == 'π' || last == 'e')
+        if (glue) expr += "×"
+        expr += if (token in FUNCTION_TOKENS) "$token(" else token
+    }
+
+    private fun appendFactorial() {
+        val last = expr.lastOrNull() ?: return
+        if (last.isDigit() || last == ')' || last == '%' || last == '!') expr += "!"
+    }
+
+    /** 1/x：把当前整个算式包进 1÷( )。 */
+    private fun wrapReciprocal() {
+        val last = expr.lastOrNull()
+        expr = if (expr.isEmpty() || last == null || Calculator.isOperator(last) || last == '(') {
+            expr + "1÷("
+        } else {
+            "1÷($expr)"
+        }
+    }
+
+    private fun currentValue(): BigDecimal? =
+        when (val outcome = Calculator.evaluate(expr, partial = true, percentMode = settings.percentMode())) {
+            is Calculator.Outcome.Value -> outcome.value
+            is Calculator.Outcome.Failure -> null
+        }
+
+    private fun adjustMemory(delta: BigDecimal) {
+        val value = currentValue()
+        if (value == null) {
+            toast("当前算式还不能算")
+            return
+        }
+        memory = (memory ?: BigDecimal.ZERO).add(value.multiply(delta))
+        updateMemoryIndicator()
+        toast(if (delta.signum() > 0) "已存入记忆" else "已从记忆减去")
+    }
+
+    private fun recallMemory() {
+        val stored = memory
+        if (stored == null) {
+            toast("记忆是空的")
+            return
+        }
+        if (resultMode) {
+            expr = ""
+            resultMode = false
+        }
+        appendToken(Calculator.format(stored))
+        haptic()
+        render()
+    }
+
+    private fun updateMemoryIndicator() {
+        memoryIndicator?.text = memory?.let { "M ${Calculator.format(it)}" } ?: ""
+    }
+
+    private fun toast(text: String) {
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
     }
 
     private fun haptic() {
@@ -624,10 +764,12 @@ class MainActivity : AppCompatActivity() {
         content.addView(
             settingRow(
                 title = "科学模式",
-                subtitle = "键盘接入后出现在这里（尚未实现）",
+                subtitle = "显示记忆键与 π、√、xʸ、ln、sin 等函数键",
                 checked = settings.scientific,
-                enabled = false,
-            ) { on -> settings.scientific = on },
+            ) { on ->
+                settings.scientific = on
+                scientificStrip?.visibility = if (on) View.VISIBLE else View.GONE
+            },
             LinearLayout.LayoutParams(MATCH, WRAP)
         )
 
@@ -803,6 +945,10 @@ class MainActivity : AppCompatActivity() {
 
         private val OPERATORS = setOf("÷", "×", "−", "+", "=")
         private val FUNCTIONS = setOf("C", "⌫", "%", "(", ")", "±")
+
+        private val RESULT_MODE_KEEPS = setOf("=", "⌫", "%", "±", "MC", "MR", "M+", "M−")
+        private val LENGTH_FREE_KEYS = setOf("=", "C", "⌫", "MC", "MR", "M+", "M−")
+        private val FUNCTION_TOKENS = setOf("sin", "cos", "tan", "ln", "log", "√")
 
         private val KEY_ROWS: List<List<Pair<String, Float>>> = listOf(
             listOf("C" to 1f, "⌫" to 1f, "%" to 1f, "÷" to 1f),
