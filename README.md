@@ -5,6 +5,14 @@
 
 单 Activity 的 Android 计算器，零第三方依赖，界面全部用系统 View 代码搭建（无 XML 布局、无 Compose）。
 
+## 截图
+
+<p align="center">
+  <img src="docs/screenshots/light.jpg" width="270" alt="浅色主题" />
+  <img src="docs/screenshots/dark.jpg" width="270" alt="深色主题" />
+  <img src="docs/screenshots/dark-scientific.jpg" width="270" alt="科学模式（深色）" />
+</p>
+
 ## 结构
 
 | 文件 | 作用 |
