@@ -1,7 +1,5 @@
 package com.xiaoqi.calculator
 
-import android.app.Activity
-import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -10,7 +8,6 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -19,15 +16,19 @@ import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.View
-import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.color.MaterialColors
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
-class MainActivity : Activity() {
+class MainActivity : AppCompatActivity() {
 
     private var expr = ""
     private var errorText: String? = null
@@ -39,8 +40,6 @@ class MainActivity : Activity() {
     private lateinit var historyBar: TextView
     private lateinit var exprView: TextView
     private lateinit var previewView: TextView
-    private lateinit var panel: LinearLayout
-    private lateinit var panelList: LinearLayout
 
     private val idleHandler = Handler(Looper.getMainLooper())
     private val idleSnapshot = Runnable { takeSnapshot() }
@@ -49,18 +48,35 @@ class MainActivity : Activity() {
 
     private fun dp(value: Float): Int = (value * density + 0.5f).toInt()
 
+    /** 从当前主题（可能已被动态取色改写）读颜色。 */
+    private fun color(attr: Int): Int =
+        MaterialColors.getColor(window.decorView, attr, Color.GRAY)
+
+    private val colorSurface get() = color(com.google.android.material.R.attr.colorSurface)
+    private val colorOnSurface get() = color(com.google.android.material.R.attr.colorOnSurface)
+    private val colorOnSurfaceVariant get() =
+        color(com.google.android.material.R.attr.colorOnSurfaceVariant)
+    private val colorPrimary get() = color(androidx.appcompat.R.attr.colorPrimary)
+    private val colorOnPrimary get() = color(com.google.android.material.R.attr.colorOnPrimary)
+    private val colorPrimaryContainer get() =
+        color(com.google.android.material.R.attr.colorPrimaryContainer)
+    private val colorOnPrimaryContainer get() =
+        color(com.google.android.material.R.attr.colorOnPrimaryContainer)
+    private val colorSecondaryContainer get() =
+        color(com.google.android.material.R.attr.colorSecondaryContainer)
+    private val colorOnSecondaryContainer get() =
+        color(com.google.android.material.R.attr.colorOnSecondaryContainer)
+    private val colorSurfaceContainerHigh get() =
+        color(com.google.android.material.R.attr.colorSurfaceContainerHigh)
+    private val colorSurfaceContainerHighest get() =
+        color(com.google.android.material.R.attr.colorSurfaceContainerHighest)
+    private val colorError get() = color(androidx.appcompat.R.attr.colorError)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         savedInstanceState?.let { expr = it.getString(KEY_EXPR) ?: "" }
         store = HistoryStore(this)
         entries.addAll(store.load())
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            @Suppress("DEPRECATION")
-            window.statusBarColor = COLOR_BACKGROUND
-            @Suppress("DEPRECATION")
-            window.navigationBarColor = COLOR_BACKGROUND
-        }
 
         setContentView(buildRoot())
         render()
@@ -74,51 +90,43 @@ class MainActivity : Activity() {
     // ---------------------------------------------------------------- 界面搭建
 
     private fun buildRoot(): View {
-        val root = FrameLayout(this)
-        root.addView(buildMain(), FrameLayout.LayoutParams(MATCH, MATCH))
-        panel = buildPanel()
-        root.addView(panel, FrameLayout.LayoutParams(MATCH, MATCH))
-        return root
-    }
-
-    private fun buildMain(): View {
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(COLOR_BACKGROUND)
-            setPadding(dp(18f), topInset() + dp(10f), dp(18f), dp(18f))
+            setBackgroundColor(colorSurface)
+            setPadding(dp(16f), topInset() + dp(8f), dp(16f), dp(16f))
         }
         column.addView(buildHistoryBar(), LinearLayout.LayoutParams(MATCH, WRAP))
         column.addView(buildDisplay(), LinearLayout.LayoutParams(MATCH, 0, 1f))
-        column.addView(buildKeypad(), LinearLayout.LayoutParams(MATCH, 0, 2.5f))
+        column.addView(buildKeypad(), LinearLayout.LayoutParams(MATCH, 0, 2.6f))
         return column
     }
 
     private fun buildHistoryBar(): View {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, dp(8f))
+        }
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(14f), dp(10f), dp(14f), dp(10f))
-            background = keyDrawable(Color.parseColor("#1C1C1E"))
-            setOnClickListener { openPanel() }
+            background = rounded(colorSurfaceContainerHigh, 20f)
+            setOnClickListener { showHistorySheet() }
         }
         historyBar = TextView(this).apply {
-            setTextColor(COLOR_TEXT_SECONDARY)
+            setTextColor(colorOnSurfaceVariant)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.START
         }
         val arrow = TextView(this).apply {
             text = "▸"
-            setTextColor(COLOR_KEY_OPERATOR)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            setTextColor(colorPrimary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
             setPadding(dp(8f), 0, 0, 0)
         }
         row.addView(historyBar, LinearLayout.LayoutParams(0, WRAP, 1f))
         row.addView(arrow, LinearLayout.LayoutParams(WRAP, WRAP))
-        val wrap = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, dp(10f))
-        }
         wrap.addView(row, LinearLayout.LayoutParams(MATCH, WRAP))
         return wrap
     }
@@ -127,13 +135,13 @@ class MainActivity : Activity() {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.BOTTOM or Gravity.END
-            setPadding(dp(8f), dp(8f), dp(8f), dp(8f))
+            setPadding(dp(6f), dp(6f), dp(6f), dp(6f))
         }
         exprView = TextView(this).apply {
             gravity = Gravity.END
-            setTextColor(Color.WHITE)
+            setTextColor(colorOnSurface)
             typeface = Typeface.create("sans-serif-light", Typeface.NORMAL)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 64f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 56f)
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.START
             setOnLongClickListener {
@@ -143,8 +151,8 @@ class MainActivity : Activity() {
         }
         previewView = TextView(this).apply {
             gravity = Gravity.END
-            setTextColor(COLOR_TEXT_SECONDARY)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTextColor(colorOnSurfaceVariant)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
             isSingleLine = true
             setPadding(0, dp(6f), 0, 0)
         }
@@ -162,7 +170,7 @@ class MainActivity : Activity() {
             }
             for ((label, weight) in row) {
                 line.addView(makeKey(label), LinearLayout.LayoutParams(0, MATCH, weight).apply {
-                    setMargins(dp(5f), dp(5f), dp(5f), dp(5f))
+                    setMargins(dp(4f), dp(4f), dp(4f), dp(4f))
                 })
             }
             keypad.addView(line, LinearLayout.LayoutParams(MATCH, 0, 1f))
@@ -170,77 +178,42 @@ class MainActivity : Activity() {
         return keypad
     }
 
-    private fun buildPanel(): LinearLayout {
-        val overlay = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#F2000000"))
-            setPadding(dp(18f), topInset() + dp(10f), dp(18f), dp(18f))
-            visibility = View.GONE
+    private fun makeKey(label: String): MaterialButton {
+        val isFunction = label in FUNCTIONS
+        val isEquals = label == "="
+        val background = when {
+            isFunction -> colorSecondaryContainer
+            isEquals -> colorPrimary
+            label in OPERATORS -> colorPrimaryContainer
+            else -> colorSurfaceContainerHighest
         }
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4f), dp(8f), dp(4f), dp(12f))
+        val foreground = when {
+            isFunction -> colorOnSecondaryContainer
+            isEquals -> colorOnPrimary
+            label in OPERATORS -> colorOnPrimaryContainer
+            else -> colorOnSurface
         }
-        val title = TextView(this).apply {
-            text = "历史记录"
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        }
-        val clear = TextView(this).apply {
-            text = "清空"
-            setTextColor(COLOR_KEY_OPERATOR)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-            setPadding(dp(16f), dp(6f), dp(8f), dp(6f))
-            setOnClickListener { confirmClear() }
-        }
-        val close = TextView(this).apply {
-            text = "关闭"
-            setTextColor(COLOR_TEXT_SECONDARY)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-            setPadding(dp(12f), dp(6f), dp(4f), dp(6f))
-            setOnClickListener { closePanel() }
-        }
-        header.addView(title, LinearLayout.LayoutParams(0, WRAP, 1f))
-        header.addView(clear, LinearLayout.LayoutParams(WRAP, WRAP))
-        header.addView(close, LinearLayout.LayoutParams(WRAP, WRAP))
-        overlay.addView(header, LinearLayout.LayoutParams(MATCH, WRAP))
-
-        panelList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true
-            addView(panelList, FrameLayout.LayoutParams(MATCH, WRAP))
-        }
-        overlay.addView(scroll, LinearLayout.LayoutParams(MATCH, 0, 1f))
-        return overlay
-    }
-
-    private fun makeKey(label: String): Button {
-        val color = when {
-            label in OPERATORS -> COLOR_KEY_OPERATOR
-            label in FUNCTIONS -> COLOR_KEY_FUNCTION
-            else -> COLOR_KEY_DIGIT
-        }
-        val foreground = if (label in FUNCTIONS) Color.BLACK else Color.WHITE
-        return Button(this).apply {
+        return MaterialButton(this).apply {
             text = label
             isAllCaps = false
             isFocusable = false
             stateListAnimator = null
-            backgroundTintList = null
+            cornerRadius = dp(28f)
+            insetTop = 0
+            insetBottom = 0
             minWidth = 0
             minHeight = 0
             setPadding(0, 0, 0, 0)
+            backgroundTintList = ColorStateList.valueOf(background)
             setTextColor(foreground)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, if (label.length > 1) 22f else 28f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, if (label.length > 1) 20f else 26f)
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            rippleColor = ColorStateList.valueOf(withAlpha(foreground, 0x33))
             contentDescription = when (label) {
                 "⌫" -> "退格"
                 "±" -> "正负号"
                 else -> label
             }
-            background = rippleKey(color)
             setOnClickListener { onKey(label) }
             if (label == "⌫") {
                 setOnLongClickListener {
@@ -252,18 +225,6 @@ class MainActivity : Activity() {
             }
         }
     }
-
-    private fun keyDrawable(color: Int): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        cornerRadius = dp(40f).toFloat()
-        setColor(color)
-    }
-
-    private fun rippleKey(color: Int): RippleDrawable = RippleDrawable(
-        ColorStateList.valueOf(RIPPLE_COLOR),
-        keyDrawable(color),
-        keyDrawable(Color.WHITE)
-    )
 
     private fun topInset(): Int {
         val id = resources.getIdentifier("status_bar_height", "dimen", "android")
@@ -399,7 +360,6 @@ class MainActivity : Activity() {
     private fun record(exprText: String, result: String, snapshot: Boolean) {
         entries.add(HistoryEntry(exprText, result, System.currentTimeMillis(), snapshot))
         store.save(entries)
-        if (panel.visibility == View.VISIBLE) rebuildPanel()
     }
 
     /** 停手一段时间后把"半成品算式"也记一条，免得算到一半切走就忘了。 */
@@ -421,70 +381,107 @@ class MainActivity : Activity() {
         }
         record(expr, shown, snapshot = true)
         lastSnapshotExpr = expr
+        render()
     }
 
-    private fun openPanel() {
-        rebuildPanel()
-        panel.visibility = View.VISIBLE
-    }
+    /** MD3 底部抽屉：拖拽把手 + 圆角行，长按复制，点按回填。 */
+    private fun showHistorySheet() {
+        val sheet = BottomSheetDialog(this)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16f), dp(8f), dp(16f), dp(16f))
+            setBackgroundColor(colorSurface)
+        }
 
-    private fun closePanel() {
-        panel.visibility = View.GONE
-    }
+        content.addView(
+            View(this).apply { background = rounded(withAlpha(colorOnSurfaceVariant, 0x4D), 2f) },
+            LinearLayout.LayoutParams(dp(32f), dp(4f)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(8f)
+            }
+        )
 
-    private fun rebuildPanel() {
-        panelList.removeAllViews()
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4f), dp(16f), dp(4f), dp(10f))
+        }
+        header.addView(TextView(this).apply {
+            text = "历史记录"
+            setTextColor(colorOnSurface)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        header.addView(TextView(this).apply {
+            text = "清空"
+            setTextColor(colorError)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setPadding(dp(12f), dp(8f), dp(12f), dp(8f))
+            background = rippleRound(withAlpha(colorError, 0x1F), 20f)
+            setOnClickListener {
+                sheet.dismiss()
+                confirmClear()
+            }
+        }, LinearLayout.LayoutParams(WRAP, WRAP))
+        content.addView(header, LinearLayout.LayoutParams(MATCH, WRAP))
+
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         if (entries.isEmpty()) {
-            panelList.addView(TextView(this).apply {
+            list.addView(TextView(this).apply {
                 text = "还没有记录"
-                setTextColor(COLOR_TEXT_SECONDARY)
+                setTextColor(colorOnSurfaceVariant)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                setPadding(dp(4f), dp(24f), dp(4f), dp(4f))
-            })
-            return
+                setPadding(dp(4f), dp(16f), dp(4f), dp(16f))
+            }, LinearLayout.LayoutParams(MATCH, WRAP))
+        } else {
+            for (entry in entries.asReversed()) {
+                list.addView(makeSheetRow(entry) {
+                    restore(entry.expr)
+                    sheet.dismiss()
+                }, LinearLayout.LayoutParams(MATCH, WRAP))
+            }
         }
-        for (entry in entries.asReversed()) {
-            panelList.addView(makeHistoryRow(entry), LinearLayout.LayoutParams(MATCH, WRAP))
-        }
+        val scroll = ScrollView(this).apply { addView(list) }
+        content.addView(scroll, LinearLayout.LayoutParams(MATCH, WRAP))
+
+        sheet.setContentView(content)
+        sheet.show()
     }
 
-    private fun makeHistoryRow(entry: HistoryEntry): View {
+    private fun makeSheetRow(entry: HistoryEntry, onClick: () -> Unit): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12f), dp(10f), dp(12f), dp(10f))
-            setBackgroundColor(Color.parseColor("#14FFFFFF"))
-            setOnClickListener { restore(entry.expr) }
+            setPadding(dp(14f), dp(12f), dp(14f), dp(12f))
+            background = rippleRound(colorSurfaceContainerHigh, 20f)
+            setOnClickListener { onClick() }
             setOnLongClickListener {
                 copyToClipboard("${entry.expr} = ${entry.result}")
                 true
             }
         }
-        val meta = TextView(this).apply {
+        row.addView(TextView(this).apply {
             text = formatDate(entry.date) + if (entry.snapshot) " · 停留记录" else ""
-            setTextColor(COLOR_TEXT_SECONDARY)
+            setTextColor(colorOnSurfaceVariant)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-        }
-        val formula = TextView(this).apply {
+        }, LinearLayout.LayoutParams(MATCH, WRAP))
+        row.addView(TextView(this).apply {
             text = entry.expr
-            setTextColor(Color.WHITE)
+            setTextColor(colorOnSurface)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        val result = TextView(this).apply {
+        }, LinearLayout.LayoutParams(MATCH, WRAP))
+        row.addView(TextView(this).apply {
             text = "= ${entry.result}"
-            setTextColor(COLOR_KEY_OPERATOR)
+            setTextColor(colorPrimary)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f)
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        row.addView(meta, LinearLayout.LayoutParams(MATCH, WRAP))
-        row.addView(formula, LinearLayout.LayoutParams(MATCH, WRAP))
-        row.addView(result, LinearLayout.LayoutParams(MATCH, WRAP))
-        val holder = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+        }, LinearLayout.LayoutParams(MATCH, WRAP))
+
+        val holder = FrameLayout(this).apply {
             setPadding(0, 0, 0, dp(8f))
-            addView(row, LinearLayout.LayoutParams(MATCH, WRAP))
+            addView(row, FrameLayout.LayoutParams(MATCH, WRAP))
         }
         return holder
     }
@@ -492,19 +489,17 @@ class MainActivity : Activity() {
     private fun restore(exprText: String) {
         expr = exprText
         errorText = null
-        closePanel()
         render()
         scheduleSnapshot()
     }
 
     private fun confirmClear() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage("清空全部历史记录？")
             .setNegativeButton("取消", null)
             .setPositiveButton("清空") { _, _ ->
                 entries.clear()
                 store.save(entries)
-                rebuildPanel()
                 render()
             }
             .show()
@@ -574,7 +569,7 @@ class MainActivity : Activity() {
             expr.isEmpty() -> "0"
             else -> expr
         }
-        exprView.setTextColor(if (error != null) COLOR_ERROR else Color.WHITE)
+        exprView.setTextColor(if (error != null) colorError else colorOnSurface)
         exprView.text = text
         exprView.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeFor(text.length))
 
@@ -597,14 +592,33 @@ class MainActivity : Activity() {
     }
 
     private fun sizeFor(length: Int): Float = when {
-        length <= 8 -> 64f
-        length <= 10 -> 58f
-        length <= 12 -> 48f
-        length <= 14 -> 42f
-        length <= 18 -> 34f
-        length <= 24 -> 28f
-        else -> 22f
+        length <= 8 -> 56f
+        length <= 10 -> 50f
+        length <= 12 -> 44f
+        length <= 14 -> 38f
+        length <= 18 -> 32f
+        length <= 24 -> 26f
+        else -> 20f
     }
+
+    // ---------------------------------------------------------------- 小工具
+
+    private fun rounded(fill: Int, cornerDp: Float): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(cornerDp).toFloat()
+            setColor(fill)
+        }
+
+    private fun rippleRound(fill: Int, cornerDp: Float): RippleDrawable =
+        RippleDrawable(
+            ColorStateList.valueOf(withAlpha(if (fill == colorSurfaceContainerHigh) colorOnSurface else fill, 0x33)),
+            rounded(fill, cornerDp),
+            rounded(Color.WHITE, cornerDp)
+        )
+
+    private fun withAlpha(color: Int, alpha: Int): Int =
+        Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
 
     companion object {
         private const val KEY_EXPR = "expr"
@@ -612,14 +626,6 @@ class MainActivity : Activity() {
 
         private const val MATCH = LinearLayout.LayoutParams.MATCH_PARENT
         private const val WRAP = LinearLayout.LayoutParams.WRAP_CONTENT
-
-        private val COLOR_BACKGROUND = Color.parseColor("#000000")
-        private val COLOR_TEXT_SECONDARY = Color.parseColor("#8E8E93")
-        private val COLOR_KEY_DIGIT = Color.parseColor("#2C2C2E")
-        private val COLOR_KEY_OPERATOR = Color.parseColor("#FF9F0A")
-        private val COLOR_KEY_FUNCTION = Color.parseColor("#A5A5A5")
-        private val COLOR_ERROR = Color.parseColor("#FF453A")
-        private const val RIPPLE_COLOR = 0x40FFFFFF
 
         private val OPERATORS = setOf("÷", "×", "−", "+", "=")
         private val FUNCTIONS = setOf("C", "⌫", "%", "(", ")", "±")

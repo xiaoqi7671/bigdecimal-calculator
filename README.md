@@ -30,6 +30,14 @@ kotlinc app/src/main/kotlin/com/xiaoqi/calculator/Calculator.kt tools/EngineChec
 java -jar .check/engine.jar
 ```
 
+## Material 3
+
+- 依赖 `com.google.android.material:material:1.13.0` + `androidx.appcompat:appcompat:1.7.0`；
+- 主题 `Theme.Material3.DayNight.NoActionBar`，跟随系统深浅色（`values/` 与 `values-night/` 两套状态栏设置）；
+- Android 12+ 由 `DynamicColors` 跟随壁纸取色，12 以下回退 Material 3 默认配色；
+- 键位色板：数字 = `surfaceContainerHighest`，运算符 = `primaryContainer`，`=` = `primary`，功能键 = `secondaryContainer`，圆角 28dp；
+- 历史面板 = `BottomSheetDialog` 底部抽屉（拖拽把手 + 圆角行），清空用 `MaterialAlertDialogBuilder`。
+
 ## 历史记录
 
 - 按 `=` 记录「算式 + 结果 + 年月日」；
@@ -48,7 +56,7 @@ java -jar .check/engine.jar
 
 ## 签名
 
-版本：`2.0-test`（versionCode 3）
+版本：`2.1-test`（versionCode 4）— MD3 改造
 
 `com.xiaoqi.calculator`，自签名证书 `CN=Xiaoqi Calculator`，
 SHA-256 `0594d3e9934c4ff424c55eb73f33dcc7ff528f1534bf970a20ca1181481999be`。

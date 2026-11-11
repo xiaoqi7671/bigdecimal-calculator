@@ -16,8 +16,8 @@ android {
         applicationId = "com.xiaoqi.calculator"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "2.0-test"
+        versionCode = 4
+        versionName = "2.1-test"
     }
 
     signingConfigs {
@@ -48,4 +48,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+}
+
+dependencies {
+    // Material 3（View 体系）：动态取色、MaterialButton、BottomSheetDialog
+    implementation("com.google.android.material:material:1.13.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
 }
