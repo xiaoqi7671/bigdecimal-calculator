@@ -38,7 +38,7 @@ android {
         }
     }
 
-    // 离线环境没有 lint 依赖，release 构建跳过 lint
+    // 跳过 lintVital：release 构建不需要它，也省掉一批只给 lint 用的依赖
     lint {
         checkReleaseBuilds = false
         abortOnError = false
