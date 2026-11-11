@@ -1,6 +1,7 @@
 # 计算器（HelloApp）
 
 ![引擎自检](https://github.com/xiaoqi7671/bigdecimal-calculator/actions/workflows/engine.yml/badge.svg)
+[![最新版本](https://img.shields.io/github/v/release/xiaoqi7671/bigdecimal-calculator?include_prereleases&label=release)](https://github.com/xiaoqi7671/bigdecimal-calculator/releases)
 
 单 Activity 的 Android 计算器，零第三方依赖，界面全部用系统 View 代码搭建（无 XML 布局、无 Compose）。
 
@@ -127,6 +128,11 @@ git -c http.version=HTTP/1.1 push https://github.com/<owner>/<repo>.git main
 **构建报 `Could not initialize native services`？** 让 Gradle 能写 `~/.gradle`（在受限环境中需要放宽文件权限），或者用 `--offline` 复用已有缓存。
 
 **装 APK 报 `Can't open file: /sdcard/...`？** 部分系统上 `system_server` 读不到 fuse 共享存储，改用文件管理器点安装，或先 `cp` 到 `/data/local/tmp` 再 `pm install`。
+
+## 下载
+
+- [Releases](https://github.com/xiaoqi7671/bigdecimal-calculator/releases)：直接下 `.apk` 安装（当前 `2.3-test`，5.17 MB，minSdk 34）
+- 或者本地构建：`gradle --offline --console=plain assembleRelease`（需要 Android SDK 与 JDK 21）
 
 ## 贡献者
 
