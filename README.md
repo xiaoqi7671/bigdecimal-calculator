@@ -107,3 +107,21 @@ Copyright (C) 2026 xiaoqi7671
 
 本项目以 **GNU General Public License v3.0** 发布，完整条款见 [LICENSE](LICENSE)。
 你可以自由使用、修改、再分发，但衍生作品必须以同样的许可证开源。
+
+## 常见问题
+
+**push 时提示 403 或连接超时？** 如果你的 `~/.gitconfig` 里有
+
+```
+url.https://gh-proxy.org/https://github.com/.insteadOf https://github.com/
+```
+
+`git remote -v` 会显示被改写过的地址，`git push` 也会被带去代理。显式写原地址并锁 HTTP/1.1 即可：
+
+```bash
+git -c http.version=HTTP/1.1 push https://github.com/<owner>/<repo>.git main
+```
+
+**构建报 `Could not initialize native services`？** 让 Gradle 能写 `~/.gradle`（在受限环境中需要放宽文件权限），或者用 `--offline` 复用已有缓存。
+
+**装 APK 报 `Can't open file: /sdcard/...`？** 部分系统上 `system_server` 读不到 fuse 共享存储，改用文件管理器点安装，或先 `cp` 到 `/data/local/tmp` 再 `pm install`。
