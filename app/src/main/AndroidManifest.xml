@@ -4,6 +4,7 @@
         android:label="计算器"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
+        android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.Calculator">
         <activity
             android:name=".MainActivity"

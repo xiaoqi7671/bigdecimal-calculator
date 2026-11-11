@@ -38,6 +38,17 @@ java -jar .check/engine.jar
 - 键位色板：数字 = `surfaceContainerHighest`，运算符 = `primaryContainer`，`=` = `primary`，功能键 = `secondaryContainer`，圆角 28dp；
 - 历史面板 = `BottomSheetDialog` 底部抽屉（拖拽把手 + 圆角行），清空用 `MaterialAlertDialogBuilder`。
 
+## 顶栏与设置
+
+- 顶栏高 48dp：左「历史」、右「设置」两个 40dp 圆底描边图标（触摸热区 48dp），中间弹性区留空，后续放单位换算/科学模式等栏位；
+- 历史记录改为点击图标打开底部抽屉，顶栏不再显示最近一条；
+- 设置抽屉（`BottomSheetDialog`）三项：
+  - **百分比按相对值计算**（默认开）：开 `200+10% = 220`，关 `200+10% = 200.1`；
+  - **连按等号重复上次运算**（默认开）：`2+3=` 得 5，再按 `=` 得 8；
+  - **科学模式**（占位，暂未实现）；
+- 边距由 `WindowInsets` 处理（Android 15 强制 edge-to-edge），横屏/挖孔/手势条都吃 inset；
+- 开启预测式返回：抽屉打开时返回键先关抽屉。
+
 ## 历史记录
 
 - 按 `=` 记录「算式 + 结果 + 年月日」；
@@ -56,7 +67,7 @@ java -jar .check/engine.jar
 
 ## 签名
 
-版本：`2.1-test`（versionCode 4）— MD3 改造
+版本：`2.2-test`（versionCode 5）— 顶栏图标入口 / 设置抽屉 / 百分umber模式
 
 `com.xiaoqi.calculator`，自签名证书 `CN=Xiaoqi Calculator`，
 SHA-256 `0594d3e9934c4ff424c55eb73f33dcc7ff528f1534bf970a20ca1181481999be`。

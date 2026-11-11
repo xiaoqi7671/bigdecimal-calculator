@@ -17,16 +17,22 @@ import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.materialswitch.MaterialSwitch
 
 class MainActivity : AppCompatActivity() {
 
@@ -37,9 +43,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var store: HistoryStore
     private val entries = mutableListOf<HistoryEntry>()
 
-    private lateinit var historyBar: TextView
+    private lateinit var settings: Settings
+    private lateinit var rootView: View
     private lateinit var exprView: TextView
     private lateinit var previewView: TextView
+
+    private var historySheet: BottomSheetDialog? = null
+    private var settingsSheet: BottomSheetDialog? = null
+
+    /** 上一次双目运算，供"连按等号重复"使用。 */
+    private var lastOp: Char? = null
+    private var lastOperand: String? = null
+    /** true = 屏幕上是刚算出的结果，不是用户正在敲的式子。 */
+    private var resultMode = false
 
     private val idleHandler = Handler(Looper.getMainLooper())
     private val idleSnapshot = Runnable { takeSnapshot() }
@@ -74,12 +90,44 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Android 15 起对 targetSdk 35+ 强制 edge-to-edge，边距由我们自己吃 inset
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         savedInstanceState?.let { expr = it.getString(KEY_EXPR) ?: "" }
+        settings = Settings(this)
         store = HistoryStore(this)
         entries.addAll(store.load())
 
         setContentView(buildRoot())
+        applyWindowInsets()
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                when {
+                    historySheet?.isShowing == true -> historySheet?.dismiss()
+                    settingsSheet?.isShowing == true -> settingsSheet?.dismiss()
+                    else -> {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                }
+            }
+        })
         render()
+    }
+
+    /** 系统栏 + 挖孔 inset 加到根布局内边距上。 */
+    private fun applyWindowInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            view.setPadding(
+                dp(16f) + bars.left,
+                dp(8f) + bars.top,
+                dp(16f) + bars.right,
+                dp(8f) + bars.bottom,
+            )
+            insets
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -93,42 +141,53 @@ class MainActivity : AppCompatActivity() {
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(colorSurface)
-            setPadding(dp(16f), topInset() + dp(8f), dp(16f), dp(16f))
+            setPadding(dp(16f), dp(8f), dp(16f), dp(8f))
         }
-        column.addView(buildHistoryBar(), LinearLayout.LayoutParams(MATCH, WRAP))
+        rootView = column
+        column.addView(buildTopBar(), LinearLayout.LayoutParams(MATCH, dp(48f)))
         column.addView(buildDisplay(), LinearLayout.LayoutParams(MATCH, 0, 1f))
         column.addView(buildKeypad(), LinearLayout.LayoutParams(MATCH, 0, 2.6f))
         return column
     }
 
-    private fun buildHistoryBar(): View {
-        val wrap = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, dp(8f))
-        }
-        val row = LinearLayout(this).apply {
+    /** 顶栏：左历史、右设置；中间弹性区留给后续栏位（换算、科学模式等）。 */
+    private fun buildTopBar(): View {
+        val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14f), dp(10f), dp(14f), dp(10f))
-            background = rounded(colorSurfaceContainerHigh, 20f)
-            setOnClickListener { showHistorySheet() }
         }
-        historyBar = TextView(this).apply {
-            setTextColor(colorOnSurfaceVariant)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            isSingleLine = true
-            ellipsize = android.text.TextUtils.TruncateAt.START
+        bar.addView(
+            circleIcon(R.drawable.ic_history_outline, "历史记录") { showHistorySheet() },
+            LinearLayout.LayoutParams(dp(48f), dp(48f))
+        )
+        bar.addView(View(this), LinearLayout.LayoutParams(0, dp(1f), 1f))
+        bar.addView(
+            circleIcon(R.drawable.ic_settings_outline, "设置") { showSettingsSheet() },
+            LinearLayout.LayoutParams(dp(48f), dp(48f))
+        )
+        return bar
+    }
+
+    /** 40dp 圆底 + 22dp 描边图标，触摸热区 48dp。 */
+    private fun circleIcon(icon: Int, description: String, onClick: () -> Unit): View {
+        val outer = FrameLayout(this).apply {
+            isClickable = true
+            isFocusable = true
+            contentDescription = description
+            setOnClickListener { onClick() }
         }
-        val arrow = TextView(this).apply {
-            text = "▸"
-            setTextColor(colorPrimary)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
-            setPadding(dp(8f), 0, 0, 0)
+        val disc = FrameLayout(this).apply {
+            background = rippleRound(colorSurfaceContainerHigh, 20f)
         }
-        row.addView(historyBar, LinearLayout.LayoutParams(0, WRAP, 1f))
-        row.addView(arrow, LinearLayout.LayoutParams(WRAP, WRAP))
-        wrap.addView(row, LinearLayout.LayoutParams(MATCH, WRAP))
-        return wrap
+        val image = ImageView(this).apply {
+            setImageResource(icon)
+            imageTintList = ColorStateList.valueOf(colorOnSurfaceVariant)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        disc.addView(image, FrameLayout.LayoutParams(dp(22f), dp(22f), Gravity.CENTER))
+        outer.addView(disc, FrameLayout.LayoutParams(dp(40f), dp(40f), Gravity.CENTER))
+        return outer
     }
 
     private fun buildDisplay(): View {
@@ -144,6 +203,8 @@ class MainActivity : AppCompatActivity() {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 56f)
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.START
+            fontFeatureSettings = "tnum"
+            setOnClickListener { copyToClipboard(text.toString()) }
             setOnLongClickListener {
                 showDisplayMenu()
                 true
@@ -154,6 +215,7 @@ class MainActivity : AppCompatActivity() {
             setTextColor(colorOnSurfaceVariant)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
             isSingleLine = true
+            fontFeatureSettings = "tnum"
             setPadding(0, dp(6f), 0, 0)
         }
         box.addView(previewView, LinearLayout.LayoutParams(MATCH, WRAP))
@@ -226,11 +288,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun topInset(): Int {
-        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
-        return if (id > 0) resources.getDimensionPixelSize(id) else dp(24f)
-    }
-
     // ---------------------------------------------------------------- 交互逻辑
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -259,6 +316,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun onKey(key: String) {
         errorText = null
+        // 刚出结果时：敲数字重新开始，敲运算符在结果上继续算
+        if (resultMode && key != "=" && key != "⌫" && key != "%" && key != "±") {
+            if (key == "C" || key !in OPERATORS) expr = ""
+            resultMode = false
+        }
         val full = expr.length >= Calculator.MAX_LENGTH && key !in setOf("=", "C", "⌫")
         if (!full) {
             when (key) {
@@ -340,17 +402,30 @@ class MainActivity : AppCompatActivity() {
 
     private fun commit() {
         if (expr.isEmpty()) return
-        when (val outcome = Calculator.evaluate(expr)) {
+        // 连按等号：把上一次的运算符与右操作数接回结果后面
+        if (resultMode && settings.repeatEquals) {
+            val op = lastOp
+            val rhs = lastOperand
+            if (op != null && rhs != null) expr = expr + op + rhs
+        }
+        when (val outcome = Calculator.evaluate(expr, percentMode = settings.percentMode())) {
             is Calculator.Outcome.Value -> {
                 val result = Calculator.format(outcome.value)
-                record(expr, result, snapshot = false)
+                val source = expr
+                record(source, result, snapshot = false)
+                Calculator.splitLastOperation(source)?.let { (op, rhs) ->
+                    lastOp = op
+                    lastOperand = rhs
+                }
                 expr = result
                 errorText = null
+                resultMode = true
                 lastSnapshotExpr = ""
             }
             is Calculator.Outcome.Failure -> {
                 errorText = outcome.reason
                 expr = ""
+                resultMode = false
             }
         }
     }
@@ -445,6 +520,8 @@ class MainActivity : AppCompatActivity() {
         content.addView(scroll, LinearLayout.LayoutParams(MATCH, WRAP))
 
         sheet.setContentView(content)
+        historySheet = sheet
+        sheet.setOnDismissListener { historySheet = null }
         sheet.show()
     }
 
@@ -489,6 +566,7 @@ class MainActivity : AppCompatActivity() {
     private fun restore(exprText: String) {
         expr = exprText
         errorText = null
+        resultMode = false
         render()
         scheduleSnapshot()
     }
@@ -503,6 +581,105 @@ class MainActivity : AppCompatActivity() {
                 render()
             }
             .show()
+    }
+
+    // ---------------------------------------------------------------- 设置
+
+    private fun showSettingsSheet() {
+        val sheet = BottomSheetDialog(this)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16f), dp(8f), dp(16f), dp(20f))
+            setBackgroundColor(colorSurface)
+        }
+        content.addView(
+            View(this).apply { background = rounded(withAlpha(colorOnSurfaceVariant, 0x4D), 2f) },
+            LinearLayout.LayoutParams(dp(32f), dp(4f)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(8f)
+                bottomMargin = dp(10f)
+            }
+        )
+        content.addView(sheetTitle("设置"), LinearLayout.LayoutParams(MATCH, WRAP))
+
+        content.addView(
+            settingRow(
+                title = "百分比按相对值计算",
+                subtitle = "开：200+10% = 220　　关：200+10% = 200.1",
+                checked = settings.percentRelative,
+            ) { on ->
+                settings.percentRelative = on
+                render()
+            },
+            LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(8f) }
+        )
+        content.addView(
+            settingRow(
+                title = "连按等号重复上次运算",
+                subtitle = "2+3= 得 5，再按一次 = 得 8",
+                checked = settings.repeatEquals,
+            ) { on -> settings.repeatEquals = on },
+            LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(8f) }
+        )
+        content.addView(
+            settingRow(
+                title = "科学模式",
+                subtitle = "键盘接入后出现在这里（尚未实现）",
+                checked = settings.scientific,
+                enabled = false,
+            ) { on -> settings.scientific = on },
+            LinearLayout.LayoutParams(MATCH, WRAP)
+        )
+
+        sheet.setContentView(content)
+        settingsSheet = sheet
+        sheet.setOnDismissListener { settingsSheet = null }
+        sheet.show()
+    }
+
+    private fun sheetTitle(text: String): TextView = TextView(this).apply {
+        this.text = text
+        setTextColor(colorOnSurface)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        setPadding(dp(14f), dp(2f), 0, dp(10f))
+    }
+
+    private fun settingRow(
+        title: String,
+        subtitle: String,
+        checked: Boolean,
+        enabled: Boolean = true,
+        onChange: (Boolean) -> Unit,
+    ): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14f), dp(12f), dp(10f), dp(12f))
+            background = rippleRound(colorSurfaceContainerHigh, 20f)
+            alpha = if (enabled) 1f else 0.45f
+        }
+        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        texts.addView(TextView(this).apply {
+            text = title
+            setTextColor(colorOnSurface)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+        })
+        texts.addView(TextView(this).apply {
+            text = subtitle
+            setTextColor(colorOnSurfaceVariant)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setPadding(0, dp(3f), dp(8f), 0)
+        })
+        val toggle = MaterialSwitch(this).apply {
+            isChecked = checked
+            isEnabled = enabled
+            setOnCheckedChangeListener { _, value -> onChange(value) }
+        }
+        row.addView(texts, LinearLayout.LayoutParams(0, WRAP, 1f))
+        row.addView(toggle, LinearLayout.LayoutParams(WRAP, WRAP))
+        if (enabled) row.setOnClickListener { toggle.isChecked = !toggle.isChecked }
+        return row
     }
 
     // ---------------------------------------------------------------- 剪贴板
@@ -576,16 +753,13 @@ class MainActivity : AppCompatActivity() {
         previewView.text = previewText()
         previewView.visibility = if (previewView.text.isEmpty()) View.GONE else View.VISIBLE
 
-        historyBar.text = entries.lastOrNull()?.let {
-            "${formatDate(it.date)}   ${it.expr} = ${it.result}"
-        } ?: "暂无历史记录"
     }
 
     /** 输入过程中给一个淡色的"= 结果"提示，但绝不替换用户敲的内容。 */
     private fun previewText(): String {
         if (errorText != null || expr.isEmpty()) return ""
         if (!expr.contains('(') && expr.none { Calculator.isOperator(it) }) return ""
-        return when (val outcome = Calculator.evaluate(expr, partial = true)) {
+        return when (val outcome = Calculator.evaluate(expr, partial = true, percentMode = settings.percentMode())) {
             is Calculator.Outcome.Value -> "= ${Calculator.format(outcome.value)}"
             is Calculator.Outcome.Failure -> ""
         }

@@ -8,6 +8,9 @@ import kotlin.math.abs
  * 表达式引擎：四则运算、一元负号、后缀百分号、括号。
  * 纯 Kotlin，不依赖 Android，方便脱离界面单独验证。
  */
+/** 百分比语义：MATH 按数学意义 x/100；RELATIVE 让 "200+10%" 等于 220。 */
+enum class PercentMode { RELATIVE, MATH }
+
 object Calculator {
 
     /** 输入长度上限，避免用户瞎按出一串没法显示的东西。 */
@@ -29,12 +32,16 @@ object Calculator {
     /**
      * @param partial 输入过程中的实时预览：允许未闭合的括号、允许以运算符结尾。
      */
-    fun evaluate(raw: String, partial: Boolean = false): Outcome {
+    fun evaluate(
+        raw: String,
+        partial: Boolean = false,
+        percentMode: PercentMode = PercentMode.RELATIVE,
+    ): Outcome {
         if (raw.isEmpty()) return Outcome.Failure("空表达式")
         val text = if (partial) trimDanglingTail(raw) else raw
         if (text.isEmpty()) return Outcome.Failure("空表达式")
         return try {
-            val value = Parser(normalize(text), allowUnclosed = partial).parse()
+            val value = Parser(normalize(text), allowUnclosed = partial, percentMode = percentMode).parse()
             if (value.isFinite()) Outcome.Value(value) else Outcome.Failure("结果超出范围")
         } catch (e: ParserException) {
             Outcome.Failure(e.message ?: "语法错误")
@@ -82,9 +89,36 @@ object Calculator {
         return i
     }
 
+    /**
+     * 拆出最后一个顶层双目运算，供"连按等号重复上一次运算"使用。
+     * 返回 (运算符, 右操作数文本)，例如 "2+3" -> ('+', "3")。
+     */
+    fun splitLastOperation(src: String): Pair<Char, String>? {
+        var depth = 0
+        var index = -1
+        for (i in src.indices) {
+            val c = src[i]
+            when {
+                c == '(' -> depth++
+                c == ')' -> depth--
+                isOperator(c) && c != '=' && depth == 0 -> {
+                    val prev = src.getOrNull(i - 1)
+                    val unary = c == '−' && (prev == null || isOperator(prev) || prev == '(')
+                    if (!unary) index = i
+                }
+            }
+        }
+        if (index <= 0 || index >= src.length - 1) return null
+        return src[index] to src.substring(index + 1)
+    }
+
     private class ParserException(message: String) : Exception(message)
 
-    private class Parser(private val src: String, private val allowUnclosed: Boolean) {
+    private class Parser(
+        private val src: String,
+        private val allowUnclosed: Boolean,
+        private val percentMode: PercentMode,
+    ) {
         private var i = 0
 
         fun parse(): Double {
@@ -149,8 +183,17 @@ object Calculator {
             while (peek() == '+' || peek() == '-') {
                 val op = src[i]
                 i++
+                val termStart = i
                 val rhs = term()
-                value = if (op == '+') value + rhs else value - rhs
+                // 相对百分比："200+10%" 读作 200 + 200×10%
+                val relative = percentMode == PercentMode.RELATIVE &&
+                    i > termStart && src[i - 1] == '%'
+                value = when {
+                    op == '+' && relative -> value + value * rhs
+                    op == '+' -> value + rhs
+                    relative -> value - value * rhs
+                    else -> value - rhs
+                }
             }
             return value
         }

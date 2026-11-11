@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 描边历史：左侧开口的表盘 + 指针 + 缺口处的回环箭头 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M4.55,9.1 A8,8 0 1 1 4.4,14.6"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.55"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M4.6,16.2 L1.7,11.4 L7.5,11.4 Z"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.4"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M12,7.6 L12,12.2 L15.1,14.0"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.55"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>
