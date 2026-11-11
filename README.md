@@ -125,3 +125,13 @@ git -c http.version=HTTP/1.1 push https://github.com/<owner>/<repo>.git main
 **构建报 `Could not initialize native services`？** 让 Gradle 能写 `~/.gradle`（在受限环境中需要放宽文件权限），或者用 `--offline` 复用已有缓存。
 
 **装 APK 报 `Can't open file: /sdcard/...`？** 部分系统上 `system_server` 读不到 fuse 共享存储，改用文件管理器点安装，或先 `cp` 到 `/data/local/tmp` 再 `pm install`。
+
+## 贡献者
+
+| 贡献者 | 角色 |
+|---|---|
+| **xiaoqi7671** | 产品方向、需求拆解、真机验收、发布签名密钥 |
+| **DeepSeek Harness**（AI 代理） | 引擎、界面、图标、自检脚本、构建与发版 |
+
+代码由 AI 代理在用户逐条需求的指导下编写，功能取舍与验收由用户完成；
+提交历史里的 `Co-authored-by` 记录了这个协作过程。
