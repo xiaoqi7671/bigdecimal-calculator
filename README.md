@@ -67,7 +67,7 @@ java -jar .check/engine.jar
 
 ## 签名
 
-版本：`2.2-test`（versionCode 5）— 顶栏图标入口 / 设置抽屉 / 百分umber模式
+版本：`2.2-test`（versionCode 5）— 顶栏图标入口 / 设置抽屉 / 百分比模式
 
 `com.xiaoqi.calculator`，自签名证书 `CN=Xiaoqi Calculator`，
 SHA-256 `0594d3e9934c4ff424c55eb73f33dcc7ff528f1534bf970a20ca1181481999be`。
