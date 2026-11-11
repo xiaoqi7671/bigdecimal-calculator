@@ -100,3 +100,10 @@ xʸ  1/x ln  log sin cos tan !
 - `1/x` 把当前整个算式包进 `1÷( )`；
 - `x²` 追加 `^2`，`xʸ` 追加 `^`，`!` 追加阶乘；
 - 输入受限 64 字符（`Calculator.MAX_LENGTH`）。
+
+## 许可证
+
+Copyright (C) 2026 xiaoqi7671
+
+本项目以 **GNU General Public License v3.0** 发布，完整条款见 [LICENSE](LICENSE)。
+你可以自由使用、修改、再分发，但衍生作品必须以同样的许可证开源。
