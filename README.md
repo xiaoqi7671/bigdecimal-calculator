@@ -1,5 +1,7 @@
 # 计算器（HelloApp）
 
+![引擎自检](https://github.com/xiaoqi7671/bigdecimal-calculator/actions/workflows/engine.yml/badge.svg)
+
 单 Activity 的 Android 计算器，零第三方依赖，界面全部用系统 View 代码搭建（无 XML 布局、无 Compose）。
 
 ## 结构
